@@ -1,0 +1,120 @@
+// Funnels App Database Schema
+// Supports both SQLite (dev) and PostgreSQL (production)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Use SQLite for local dev, Postgres for production
+// Set DATABASE_URL="file:./dev.db" for SQLite
+// Set DATABASE_URL="postgresql://..." for Postgres
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Users - linked to Whop accounts
+model User {
+  id            String   @id @default(cuid())
+  whopUserId    String   @unique @map("whop_user_id")
+  email         String?
+  name          String?
+  username      String?
+  avatarUrl     String?  @map("avatar_url")
+  
+  // OAuth tokens (encrypted in production)
+  accessToken   String?  @map("access_token")
+  refreshToken  String?  @map("refresh_token")
+  tokenExpiry   DateTime? @map("token_expiry")
+  
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  
+  funnels       Funnel[]
+  
+  @@map("users")
+}
+
+// Funnels - the main product entity
+model Funnel {
+  id            String   @id @default(cuid())
+  userId        String   @map("user_id")
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  name          String
+  slug          String   @unique
+  description   String?
+  
+  // Whop product connection
+  whopProductId String?  @map("whop_product_id")
+  whopProductName String? @map("whop_product_name")
+  
+  // Publishing state
+  published     Boolean  @default(false)
+  publishedAt   DateTime? @map("published_at")
+  
+  // Current draft state (Craft.js JSON)
+  draftState    String?  @map("draft_state")
+  
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  
+  versions      FunnelVersion[]
+  analytics     AnalyticsEvent[]
+  
+  @@index([userId])
+  @@index([slug])
+  @@map("funnels")
+}
+
+// Funnel Versions - for version history and rollback
+model FunnelVersion {
+  id            String   @id @default(cuid())
+  funnelId      String   @map("funnel_id")
+  funnel        Funnel   @relation(fields: [funnelId], references: [id], onDelete: Cascade)
+  
+  version       Int
+  craftState    String   @map("craft_state")
+  
+  // Metadata
+  publishedBy   String?  @map("published_by")
+  note          String?
+  
+  createdAt     DateTime @default(now()) @map("created_at")
+  
+  @@unique([funnelId, version])
+  @@index([funnelId])
+  @@map("funnel_versions")
+}
+
+// Analytics Events - track funnel performance
+model AnalyticsEvent {
+  id            String   @id @default(cuid())
+  funnelId      String   @map("funnel_id")
+  funnel        Funnel   @relation(fields: [funnelId], references: [id], onDelete: Cascade)
+  
+  eventType     String   @map("event_type") // view, click, conversion
+  
+  // Event metadata (stored as JSON string for SQLite compatibility)
+  metadata      String?
+  
+  // Visitor info
+  visitorId     String?  @map("visitor_id")
+  sessionId     String?  @map("session_id")
+  referrer      String?
+  userAgent     String?  @map("user_agent")
+  ipCountry     String?  @map("ip_country")
+  
+  // Whop conversion data (from webhook)
+  whopPaymentId String?  @map("whop_payment_id")
+  whopUserId    String?  @map("whop_user_id")
+  amount        Float?
+  currency      String?
+  
+  createdAt     DateTime @default(now()) @map("created_at")
+  
+  @@index([funnelId])
+  @@index([funnelId, eventType])
+  @@index([createdAt])
+  @@map("analytics_events")
+}
