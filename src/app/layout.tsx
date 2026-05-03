@@ -18,6 +18,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <meta name="whop-app-id" content="app_7OXSNkKhVqdpsf" />
+        <script src="https://whop-ads.vercel.app/api/w/js" defer />
+      </head>
       <body className={`${inter.className} antialiased`}>
         {children}
       </body>
